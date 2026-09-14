@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#1a73e8">
+<title>診療情報連携共有料 照会用紙 作成支援</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="app-header">
+  <button id="nav-back-btn" class="header-icon-btn back-btn hidden" type="button" aria-label="戻る">‹ 戻る</button>
+  <h1 id="header-title">診療情報連携共有料 照会用紙 文言作成</h1>
+  <button id="nav-settings-btn" class="header-icon-btn settings-btn hidden" type="button" aria-label="設定">⚙ 設定</button>
+</header>
+
+<nav id="step-indicator" class="step-indicator hidden" aria-label="進行ステップ">
+  <div class="step-item" data-step="1">
+    <span class="step-num">1</span>
+    <span class="step-label">患者情報<br>治療内容</span>
+  </div>
+  <div class="step-item" data-step="2">
+    <span class="step-num">2</span>
+    <span class="step-label">医療機関<br>選択</span>
+  </div>
+  <div class="step-item" data-step="3">
+    <span class="step-num">3</span>
+    <span class="step-label">内容確認</span>
+  </div>
+  <div class="step-item" data-step="4">
+    <span class="step-num">4</span>
+    <span class="step-label">PDF<br>共有</span>
+  </div>
+</nav>
+
+<main>
+
+  <!-- ============ 治療内容選択（フェーズ1） ============ -->
+  <section id="screen-treatment" class="screen" data-title="治療内容の選択・文言生成" data-show-settings="true" data-step="1">
+    <div class="section">
+      <h2 class="section-title">1. 患者情報</h2>
+      <div class="form-group">
+        <label class="form-label" for="patient-name">患者氏名 <span class="required">必須</span></label>
+        <input class="form-input" id="patient-name" type="text" placeholder="例）診療 太郎">
+        <p id="patient-name-error" class="form-error hidden">患者氏名を入力してください。</p>
+      </div>
+      <div class="form-group">
+        <label class="form-label">性別</label>
+        <div class="gender-toggle-group">
+          <button type="button" class="gender-toggle-btn" data-gender="male">男</button>
+          <button type="button" class="gender-toggle-btn" data-gender="female">女</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="patient-birthdate">生年月日</label>
+        <input class="form-input" id="patient-birthdate" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="patient-address">患者住所</label>
+        <input class="form-input" id="patient-address" type="text" placeholder="例）〇〇県〇〇市...">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="patient-phone">患者電話番号</label>
+        <input class="form-input" id="patient-phone" type="tel" placeholder="例）090-0000-0000">
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">2. 治療内容を選択（複数可）</h2>
+      <div id="treatment-buttons" class="treatment-grid" role="group" aria-label="治療内容の選択">
+        <!-- ボタンはJSで動的生成 -->
+      </div>
+    </div>
+
+    <div class="section">
+      <button id="generate-btn" class="primary-btn" type="button">文言を生成</button>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">3. 生成された文言（編集可）</h2>
+      <textarea id="preview-textarea" class="preview-textarea" placeholder="治療内容を選択して「文言を生成」を押すと、ここに文言が表示されます。"></textarea>
+    </div>
+
+    <p id="treatment-next-error" class="form-error hidden"></p>
+
+    <div class="section">
+      <button id="to-institution-btn" class="primary-btn" type="button">次へ（照会先医療機関を選択）</button>
+    </div>
+  </section>
+
+  <!-- ============ 照会先医療機関 選択 ============ -->
+  <section id="screen-institution-select" class="screen hidden" data-title="照会先医療機関の選択" data-step="2">
+    <div class="section">
+      <h2 class="section-title">照会先の医療機関を選択してください</h2>
+      <div id="institution-select-list" class="institution-list"></div>
+      <button id="add-institution-from-select-btn" class="secondary-btn full-width-btn" type="button">＋ 新しい医療機関を登録する</button>
+    </div>
+  </section>
+
+  <!-- ============ 医療機関 登録・編集フォーム ============ -->
+  <section id="screen-institution-form" class="screen hidden" data-title="医療機関情報の入力">
+    <form id="institution-form" class="form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="inst-name">医療機関名 <span class="required">必須</span></label>
+        <input class="form-input" id="inst-name" name="name" type="text" required placeholder="例）〇〇内科クリニック">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="inst-department">担当科</label>
+        <input class="form-input" id="inst-department" name="department" type="text" placeholder="例）内科">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="inst-doctor">担当医名</label>
+        <input class="form-input" id="inst-doctor" name="doctorName" type="text" placeholder="例）〇〇 〇〇 先生">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="inst-address">住所</label>
+        <input class="form-input" id="inst-address" name="address" type="text" placeholder="例）〇〇県〇〇市...">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="inst-phone">電話番号</label>
+        <input class="form-input" id="inst-phone" name="phone" type="tel" placeholder="例）00-0000-0000">
+      </div>
+      <p id="institution-form-error" class="form-error hidden">医療機関名を入力してください。</p>
+      <div class="form-actions">
+        <button id="institution-form-cancel-btn" class="secondary-btn" type="button">キャンセル</button>
+        <button id="institution-form-save-btn" class="primary-btn" type="submit">保存する</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ============ 医療機関マスター 管理（一覧・編集・削除） ============ -->
+  <section id="screen-institution-manage" class="screen hidden" data-title="医療機関マスターの管理">
+    <div class="section">
+      <div id="institution-manage-list" class="institution-list"></div>
+      <p id="institution-manage-empty" class="empty-message hidden">登録済みの医療機関がありません。</p>
+      <button id="add-institution-from-manage-btn" class="secondary-btn full-width-btn" type="button">＋ 新規登録</button>
+    </div>
+  </section>
+
+  <!-- ============ 自院情報（初回設定／編集） ============ -->
+  <section id="screen-own-clinic" class="screen hidden" data-title="自院情報の設定">
+    <div class="section">
+      <p id="own-clinic-intro" class="app-note"></p>
+      <form id="own-clinic-form" class="form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="clinic-name">照会元歯科医療機関名 <span class="required">必須</span></label>
+          <input class="form-input" id="clinic-name" name="clinicName" type="text" placeholder="例）〇〇歯科医院">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="clinic-dentist">歯科医師氏名</label>
+          <input class="form-input" id="clinic-dentist" name="dentistName" type="text" placeholder="例）〇〇 〇〇">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="clinic-address">所在地</label>
+          <input class="form-input" id="clinic-address" name="address" type="text" placeholder="例）〇〇県〇〇市...">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="clinic-phone">電話番号</label>
+          <input class="form-input" id="clinic-phone" name="phone" type="tel" placeholder="例）00-0000-0000">
+        </div>
+        <p id="own-clinic-form-error" class="form-error hidden">照会元歯科医療機関名を入力してください。</p>
+        <div class="form-actions">
+          <button id="own-clinic-cancel-btn" class="secondary-btn hidden" type="button">キャンセル</button>
+          <button id="own-clinic-save-btn" class="primary-btn" type="submit">保存する</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ============ 設定メニュー ============ -->
+  <section id="screen-settings" class="screen hidden" data-title="設定">
+    <div class="section settings-menu">
+      <button id="settings-manage-institution-btn" class="settings-item-btn" type="button">医科医療機関マスターの管理</button>
+      <button id="settings-edit-clinic-btn" class="settings-item-btn" type="button">自院情報の編集</button>
+    </div>
+  </section>
+
+  <!-- ============ 文言確認（最終確認） ============ -->
+  <section id="screen-confirm" class="screen hidden" data-title="文言の確認" data-step="3">
+    <div class="section">
+      <h2 class="section-title">照会先医療機関</h2>
+      <div id="confirm-institution-info" class="info-card"></div>
+      <button id="change-institution-btn" class="secondary-btn full-width-btn" type="button">医療機関を変更する</button>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">照会元（自院）</h2>
+      <div id="confirm-clinic-info" class="info-card"></div>
+    </div>
+
+    <div class="section">
+      <h2 class="section-title">生成された文言（編集可）</h2>
+      <textarea id="confirm-textarea" class="preview-textarea"></textarea>
+    </div>
+
+    <div class="section">
+      <button id="to-final-preview-btn" class="primary-btn" type="button">次へ（最終プレビューへ）</button>
+    </div>
+
+    <div class="section">
+      <button id="restart-btn" class="secondary-btn full-width-btn" type="button">はじめから（治療内容選択に戻る）</button>
+    </div>
+  </section>
+
+  <!-- ============ 最終プレビュー・PDF生成（フェーズ3） ============ -->
+  <section id="screen-final-preview" class="screen hidden" data-title="最終プレビュー" data-step="4">
+    <p class="app-note">内容をご確認のうえ、必要であれば用紙上の項目を直接タップして編集してください。</p>
+
+    <div id="paper-viewport" class="paper-viewport">
+      <div id="paper-sheet" class="paper-sheet">
+        <h2 class="paper-title">診療情報連携共有に係る照会</h2>
+        <div class="paper-date-row">
+          <span id="paper-date" class="paper-fill" contenteditable="true"></span>
+        </div>
+
+        <div class="paper-header-flex">
+          <div class="paper-dest-box">
+            <div class="paper-line">
+              <span class="paper-label">照会先医療機関名</span>
+              <span id="paper-dest-name" class="paper-fill paper-underline" contenteditable="true"></span>
+            </div>
+            <div class="paper-line paper-line-nowrap">
+              <span class="paper-label">診療科</span>
+              <span id="paper-dest-dept" class="paper-fill paper-underline paper-underline-sm" contenteditable="true"></span>
+              <span class="paper-label">担当医</span>
+              <span id="paper-dest-doctor" class="paper-fill paper-underline paper-underline-sm" contenteditable="true"></span>
+              <span class="paper-suffix">先生御机下</span>
+            </div>
+          </div>
+
+          <div class="paper-origin-box">
+            <div class="paper-origin-row">
+              <span class="paper-origin-label">照会元歯科医療機関名</span>
+              <span id="paper-origin-name" class="paper-fill" contenteditable="true"></span>
+            </div>
+            <div class="paper-origin-row">
+              <span class="paper-origin-label">歯科医師氏名</span>
+              <span id="paper-origin-dentist" class="paper-fill" contenteditable="true"></span>
+              <span class="paper-seal">印</span>
+            </div>
+            <div class="paper-origin-row">
+              <span class="paper-origin-label">所在地</span>
+              <span id="paper-origin-address" class="paper-fill" contenteditable="true"></span>
+            </div>
+            <div class="paper-origin-row">
+              <span class="paper-origin-label">電話番号</span>
+              <span id="paper-origin-phone" class="paper-fill" contenteditable="true"></span>
+            </div>
+          </div>
+        </div>
+
+        <p class="paper-intro">貴院（科）にてご加療中の患者について、当院では次のような歯科治療を予定しております。患者の病状や貴院（科）での投薬の状況や歯科治療上留意が必要な事項等について情報提供をお願いいたします。</p>
+
+        <div class="paper-table">
+          <div class="paper-row row-patient-name">
+            <div class="cell label">患者氏名</div>
+            <div id="paper-patient-name" class="cell value" contenteditable="true"></div>
+            <div class="cell label narrow">性別</div>
+            <div class="cell gender">
+              <span id="paper-gender-male" class="gender-mark">男</span>
+              <span class="gender-sep">・</span>
+              <span id="paper-gender-female" class="gender-mark">女</span>
+            </div>
+          </div>
+
+          <div class="paper-row row-address">
+            <div class="addr-line">
+              <span class="cell label">患者住所</span>
+              <span id="paper-patient-address" class="cell value" contenteditable="true"></span>
+            </div>
+            <div class="addr-line">
+              <span class="cell label">電話番号</span>
+              <span id="paper-patient-phone" class="cell value" contenteditable="true"></span>
+            </div>
+          </div>
+
+          <div class="paper-row row-birth">
+            <div class="cell label">生年月日</div>
+            <div id="paper-patient-birth" class="cell value" contenteditable="true"></div>
+          </div>
+
+          <div class="paper-row row-disease">
+            <div class="cell label center">当院傷病名</div>
+            <div class="cell value checks">
+              <div class="checks-line"><span id="chk-disease-caries" class="chk-box">☐</span>う蝕　<span id="chk-disease-perio" class="chk-box">☐</span>歯周病</div>
+              <div class="checks-line"><span id="chk-disease-other" class="chk-box">☐</span>その他（<span id="paper-disease-other-text" class="paper-fill" contenteditable="true"></span>）</div>
+            </div>
+          </div>
+
+          <div class="paper-row row-plan">
+            <div class="cell label center">治療予定</div>
+            <div class="cell value checks">
+              <div class="checks-line"><span id="chk-plan-caries" class="chk-box">☐</span>う蝕処置　<span id="chk-plan-extraction" class="chk-box">☐</span>抜歯　<span id="chk-plan-perio-surgery" class="chk-box">☐</span>歯周外科</div>
+              <div class="checks-line"><span id="chk-plan-other" class="chk-box">☐</span>その他（<span id="paper-plan-other-text" class="paper-fill" contenteditable="true"></span>）</div>
+            </div>
+          </div>
+
+          <div class="paper-row row-prescription">
+            <div class="cell label center">処方・麻酔等</div>
+            <div id="paper-prescription" class="cell value tall" contenteditable="true"></div>
+          </div>
+        </div>
+
+        <div class="paper-table paper-table-spaced">
+          <div class="paper-row row-request">
+            <div class="cell label center">診療情報の提供を<br>求める内容</div>
+            <div id="paper-request" class="cell value extra-tall" contenteditable="true"></div>
+          </div>
+        </div>
+
+        <div class="paper-remarks-box">
+          <div class="remarks-title">【備考】</div>
+          <div id="paper-remarks" class="remarks-value" contenteditable="true"></div>
+        </div>
+
+        <p class="paper-footer">（診療情報連携共有料様式　日本歯科医師会）</p>
+      </div>
+    </div>
+
+    <p id="final-preview-error" class="form-error hidden"></p>
+
+    <div class="section">
+      <button id="share-pdf-btn" class="primary-btn full-width-btn" type="button">PDFを共有・印刷する</button>
+    </div>
+
+    <div class="section">
+      <button id="new-referral-btn" class="secondary-btn full-width-btn" type="button">新しい照会を作成する</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+<script src="js/storage.js"></script>
+<script src="js/nav.js"></script>
+<script src="js/treatment.js"></script>
+<script src="js/institution.js"></script>
+<script src="js/clinic.js"></script>
+<script src="js/finalpreview.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
