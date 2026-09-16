@@ -1,6 +1,10 @@
 (() => {
   "use strict";
 
+  // PDF作成時に送信履歴を追記するGoogle Apps Script Webアプリのエンドポイント。
+  // 空文字のままなら送信履歴の記録は行わない（未設定でも他の機能に影響しない）。
+  const SHEET_LOG_URL = "https://script.google.com/macros/s/AKfycbxLHUIKqESlpADtxbStMyW1oAzSglzPkhxSQSRx_KMTFrDb6NW2sUp5-WxI7GaKam46/exec";
+
   // 治療内容 → 用紙上のチェック欄マッピング。
   // 対応するチェック項目が用紙にない治療内容は、それぞれの「その他」欄に記載する。
   const TREATMENT_MAP = {
@@ -156,6 +160,49 @@
     );
   }
 
+  function formatDateSlash(dateObj) {
+    const p = formatDateParts(dateObj);
+    return `${p.y}/${String(p.m).padStart(2, "0")}/${String(p.d).padStart(2, "0")}`;
+  }
+
+  function genderLabel(gender) {
+    if (gender === "male") return "男";
+    if (gender === "female") return "女";
+    return "";
+  }
+
+  // PDF作成のたびに、送付記録をGoogleスプレッドシートへ1行追記する（設定されている場合のみ）。
+  // 返信管理はスタッフが後からシートの「回答状況」欄に手入力する運用のため、この処理は
+  // 記録が失敗してもPDF作成・共有そのものは止めない（失敗はコンソールに残すのみ）。
+  function logToSheet() {
+    if (!SHEET_LOG_URL) return;
+
+    const state = window.AppState;
+    const institution = Storage.getInstitution(state.selectedInstitutionId) || {};
+
+    const payload = {
+      sentDate: formatDateSlash(new Date()),
+      institutionName: institution.name || "",
+      department: institution.department || "",
+      doctorName: institution.doctorName || "",
+      patientName: state.patientName || "",
+      patientGender: genderLabel(state.patientGender),
+      patientBirthDate: state.patientBirthDate ? formatDateSlash(new Date(state.patientBirthDate)) : "",
+      treatments: (state.selectedTreatments || []).join("、"),
+    };
+
+    // Apps Script は preflight(OPTIONS) に対応していないため、
+    // text/plain + no-cors でシンプルリクエストとして送る（応答内容は読み取れない前提）。
+    fetch(SHEET_LOG_URL, {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+    }).catch((err) => {
+      console.error("スプレッドシートへの送付記録に失敗しました:", err);
+    });
+  }
+
   async function sharePdf() {
     const sheet = document.getElementById("paper-sheet");
     const btn = document.getElementById("share-pdf-btn");
@@ -201,6 +248,7 @@
 
     try {
       const blob = await window.html2pdf().set(opt).from(sheet).outputPdf("blob");
+      logToSheet();
 
       const file = new File([blob], filename, { type: "application/pdf" });
 
